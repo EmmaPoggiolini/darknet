@@ -326,8 +326,15 @@ int compare_by_probs(const void *a_ptr, const void *b_ptr) {
     return delta < 0 ? -1 : delta > 0 ? 1 : 0;
 }
 
+void yolo_bbox2bbox(float x, float y, float w, float h, float *x1, float *y1, float *x2, float *y2) {
+    *x1 = x - w / 2;
+    *y1 = y - h / 2;
+    *x2 = x + w / 2;
+    *y2 = y + h / 2;
+}
+
 void draw_detections_v3(image im, detection *dets, int num, float thresh, char **names, image **alphabet, int classes, int ext_output)
-{
+{    
     static int frame_id = 0;
     frame_id++;
 
@@ -337,8 +344,23 @@ void draw_detections_v3(image im, detection *dets, int num, float thresh, char *
     // text output
     qsort(selected_detections, selected_detections_num, sizeof(*selected_detections), compare_by_lefts);
     int i;
+
+    FILE* fw = fopen("bbox.csv", "wb");
+
     for (i = 0; i < selected_detections_num; ++i) {
         const int best_class = selected_detections[i].best_class;
+
+        // float x1, y1, x2, y2;
+        // yolo_bbox2bbox(selected_detections[i].det.bbox.x, selected_detections[i].det.bbox.y,
+        //                 selected_detections[i].det.bbox.w, selected_detections[i].det.bbox.h,
+        //                 &x1, &y1, &x2, &y2);
+
+        char buff[1024];
+        // sprintf(buff, "%s %4.0f %4.0f %4.0f %4.0f\n", names[best_class], x1, y1, x2, y2);
+        sprintf(buff, "%s %4.3f %4.3f %4.3f %4.3f\n", names[best_class], selected_detections[i].det.bbox.x, 
+                selected_detections[i].det.bbox.y, (double)im.w, (double)im.h); 
+        fwrite(buff, sizeof(char), strlen(buff), fw);
+
         printf("%s: %.0f%%", names[best_class],    selected_detections[i].det.prob[best_class] * 100);
         if (ext_output)
             printf("\t(left_x: %4.0f   top_y: %4.0f   width: %4.0f   height: %4.0f)\n",
@@ -351,7 +373,6 @@ void draw_detections_v3(image im, detection *dets, int num, float thresh, char *
         for (j = 0; j < classes; ++j) {
             if (selected_detections[i].det.prob[j] > thresh && j != best_class) {
                 printf("%s: %.0f%%", names[j], selected_detections[i].det.prob[j] * 100);
-
                 if (ext_output)
                     printf("\t(left_x: %4.0f   top_y: %4.0f   width: %4.0f   height: %4.0f)\n",
                         round((selected_detections[i].det.bbox.x - selected_detections[i].det.bbox.w / 2)*im.w),
@@ -362,6 +383,8 @@ void draw_detections_v3(image im, detection *dets, int num, float thresh, char *
             }
         }
     }
+
+    fclose(fw); 
 
     // image output
     qsort(selected_detections, selected_detections_num, sizeof(*selected_detections), compare_by_probs);
